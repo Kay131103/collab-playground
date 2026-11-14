@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Collab Playground — draw & code together, live</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎨</text></svg>" />
+    <style>
+      :root {
+        --bg: #0b0e14;
+        --panel: #11151f;
+        --panel-2: #161b28;
+        --border: #232a3b;
+        --text: #d7dce6;
+        --muted: #7d879c;
+        --accent: #7c6cff;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        padding: 10px 14px;
+        background: var(--panel);
+        border-bottom: 1px solid var(--border);
+      }
+      .logo { font-weight: 700; letter-spacing: 0.5px; }
+      .logo span { color: var(--accent); }
+      .room-box {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 4px 6px;
+      }
+      input[type="text"], input[type="password"] {
+        background: transparent;
+        border: none;
+        outline: none;
+        color: var(--text);
+        font: inherit;
+        min-width: 0;
+      }
+      #roomInput { width: 130px; text-transform: lowercase; }
+      button {
+        background: var(--panel-2);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 6px 12px;
+        font: inherit;
+        font-size: 13px;
+        cursor: pointer;
+        transition: border-color 0.15s, background 0.15s;
+      }
+      button:hover { border-color: var(--accent); }
+      button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+      label.toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); cursor: pointer; user-select: none; }
+      .spacer { flex: 1; }
+      #peers { display: flex; gap: 6px; align-items: center; }
+      .peer-dot {
+        width: 22px; height: 22px; border-radius: 50%;
+        display: grid; place-items: center;
+        font-size: 11px; font-weight: 700; color: #0b0e14;
+      }
+      main {
+        flex: 1;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1px;
+        background: var(--border);
+        min-height: 0;
+      }
+      @media (max-width: 800px) { main { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; } }
+      section { position: relative; background: var(--bg); display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+      .panel-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 12px;
+        font-size: 12px;
+        color: var(--muted);
+        background: var(--panel);
+        border-bottom: 1px solid var(--border);
+      }
+      .panel-head b { color: var(--text); font-size: 13px; }
+      .swatch {
+        width: 20px; height: 20px; border-radius: 50%;
+        border: 2px solid transparent; cursor: pointer; padding: 0;
+      }
+      .swatch.active { border-color: #fff; transform: scale(1.12); }
+      canvas#board { flex: 1; width: 100%; cursor: crosshair; touch-action: none; }
+      #overlayCanvas { position: absolute; inset: 0; pointer-events: none; }
+      #editor {
+        flex: 1;
+        width: 100%;
+        resize: none;
+        border: none;
+        outline: none;
+        background: var(--bg);
+        color: #cdd6e4;
+        font: 14px/1.6 "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+        padding: 14px;
+        tab-size: 2;
+        white-space: pre;
+      }
+      #editor::placeholder { color: #4a5568; }
+      .toast {
+        position: fixed;
+        bottom: 18px;
+        left: 50%;
+        transform: translateX(-50%) translateY(80px);
+        background: var(--panel-2);
+        border: 1px solid var(--accent);
+        color: var(--text);
+        padding: 9px 16px;
+        border-radius: 10px;
+        font-size: 13px;
+        opacity: 0;
+        transition: all 0.25s;
+        pointer-events: none;
+        z-index: 10;
+      }
+      .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+      select {
+        background: var(--panel-2);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 5px 8px;
+        font: inherit;
+        font-size: 13px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="logo">✦ collab<span>playground</span></div>
+      <div class="room-box">
+        <span style="color: var(--muted); font-size: 12px">room</span>
+        <input id="roomInput" type="text" spellcheck="false" />
+        <button id="joinBtn" class="primary">Join</button>
+        <button id="copyBtn" title="Copy invite link">🔗 Invite</button>
+      </div>
+      <label class="toggle" title="Sync across different devices via WebRTC (same-browser tabs always sync)">
+        <input id="webrtcToggle" type="checkbox" checked />
+        cross-device (WebRTC)
+      </label>
+      <div class="spacer"></div>
+      <div id="peers"></div>
+    </header>
+
+    <main>
+      <section id="canvasPane">
+        <div class="panel-head">
+          <b>🎨 Shared canvas</b>
+          <span id="colorSwatches" style="display: flex; gap: 5px"></span>
+          <span style="display: flex; align-items: center; gap: 6px">
+            size <input id="brushSize" type="range" min="2" max="24" value="4" style="width: 70px" />
+          </span>
+          <button id="undoBtn">↩ Undo</button>
+          <button id="clearBtn">🗑 Clear</button>
+        </div>
+        <canvas id="board"></canvas>
+        <canvas id="overlayCanvas"></canvas>
+      </section>
+
+      <section id="editorPane">
+        <div class="panel-head">
+          <b>✎ Shared code editor</b>
+          <select id="langSelect">
+            <option value="js">JavaScript</option>
+            <option value="py">Python</option>
+            <option value="md">Markdown</option>
+            <option value="txt">Plain text</option>
+          </select>
+          <span style="margin-left: auto">CRDT-powered (Yjs) — no conflicts, ever</span>
+        </div>
+        <textarea
+          id="editor"
+          spellcheck="false"
+          placeholder="// Start typing — everyone in this room sees your keystrokes live.
+// Share the invite link, or just open a second tab to try it solo."
+        ></textarea>
+      </section>
+    </main>
+
+    <div id="toast" class="toast"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
